@@ -25,7 +25,7 @@ sql команды (выполняеются после вызова postgres к
 CREATE DATABASE test_master;
 
 CREATE USER replicator WITH REPLICATION ENCRYPTED PASSWORD '123456';
-
+SHOW data_directory;
 ```
 
 Запрос пути где живет файл конфигурации
@@ -51,6 +51,39 @@ hot_standby = on
 ```                                                         
 sudo systemctl restart postgresql
 ```
+
+Создаем новую пустую папку, где будут жить данные нашей реплики (создавать в директории полученной sql-командой SHOW data_directory)
+```                                                         
+sudo mkdir -p /var/lib/postgresql/16/replica
+sudo chown postgres:postgres /var/lib/postgresql/16/replica
+sudo chmod 700 /var/lib/postgresql/16/replica
+```
+
+Копируем файл конфигурации из master папки в slave папку
+``` 
+sudo cp /etc/postgresql/16/main/postgresql.conf /var/lib/postgresql/16/replica/postgresql.conf
+sudo chown postgres:postgres /var/lib/postgresql/16/replica/postgresql.conf
+```
+
+Редактируем файл - меняем порт, т.к. мастер и слейв слушают разные порты, также меняем настройки чтобы избежать конфликтов
+```
+sudo nano /var/lib/postgresql/16/replica/postgresql.conf
+port = 5433
+data_directory = '/var/lib/postgresql/16/replica'
+sudo nano /var/lib/postgresql/16/replica/postgresql.conf
+ssl = off
+#external_pid_file = '/var/run/postgresql/16-main.pid'
+```
+Добавляем папку conf.d
+sudo mkdir -p /var/lib/postgresql/16/replica/conf.d
+sudo chown postgres:postgres /var/lib/postgresql/16/replica/conf.d
+
+Запускаем. Если что то не так читаем логи 
+```
+sudo -i -u postgres /usr/lib/postgresql/16/bin/pg_ctl -D /var/lib/postgresql/16/replica -l /var/lib/postgresql/16/replica/logfile start
+sudo tail -n 20 /var/lib/postgresql/16/replica/logfile
+```
+
 
 
 ---
