@@ -9,13 +9,14 @@
 
 ### Задание 2
 
-`Ссылка на .cfg`
+`Проверка записи через мастер - добавлена строка 'Привет! Репликация работает!'. Также сделан запрос на статус - по выводу видно, что пользователь replicator иммет доступ на локал хосте, т.е. репликация настроена`
 
-https://github.com/turboturtle-90/Homework_clustering_and_load_balancing/blob/593b469a59cef8dcb0deedeb24426b0453281f6e/haproxy.cfg-assignment2 
+![master-insert1.jpg](https://github.com/turboturtle-90/DB-replication_part1/blob/b8bb7f154bdbb1f690b2e30c59d30ad55b6e2d2d/master-insert1.jpg)
 
-`Балансировка на 7 уровне по roubdrobin с весовыми множителями и обработкой только при адресации к домену example.com`
-![2-weighted-level7.jpg](https://github.com/turboturtle-90/Homework_clustering_and_load_balancing/blob/593b469a59cef8dcb0deedeb24426b0453281f6e/2-weighted-level7.jpg)
 
+`Проверка, что в реплику пишется информация с мастера, но не может писаться напрямую `
+
+![slave-read.jpg](https://github.com/turboturtle-90/DB-replication_part1/blob/b8bb7f154bdbb1f690b2e30c59d30ad55b6e2d2d/slave-read.jpg)
 
 `Текст команд для конфигурирования master-slave системы на postgres приведен ниже :`
 
@@ -23,7 +24,6 @@ sql команды (выполняеются после вызова postgres к
 
 ```                                                         
 CREATE DATABASE test_master;
-
 CREATE USER replicator WITH REPLICATION ENCRYPTED PASSWORD '123456';
 SHOW data_directory;
 ```
@@ -35,12 +35,16 @@ sudo -i -u postgres psql -c "SHOW data_directory;"
 
 В файл кофигурации дописать если еще не дописаны права на подключение пользователя replication локально
 ```                                                         
+sudo nano /etc/postgresql/16/main/pg_hba.conf
+
 host    replication     replicator      127.0.0.1/32            scram-sha-256
 ```
 
 В настройках master активируем репликацию
+
 ```                                                         
 sudo nano /etc/postgresql/16/main/postgresql.conf
+
 wal_level = replica
 max_wal_senders = 10
 hot_standby = on
@@ -68,6 +72,7 @@ sudo chown postgres:postgres /var/lib/postgresql/16/replica/postgresql.conf
 Редактируем файл - меняем порт, т.к. мастер и слейв слушают разные порты, также меняем настройки чтобы избежать конфликтов
 ```
 sudo nano /var/lib/postgresql/16/replica/postgresql.conf
+
 port = 5433
 data_directory = '/var/lib/postgresql/16/replica'
 sudo nano /var/lib/postgresql/16/replica/postgresql.conf
@@ -84,6 +89,21 @@ sudo -i -u postgres /usr/lib/postgresql/16/bin/pg_ctl -D /var/lib/postgresql/16/
 sudo tail -n 20 /var/lib/postgresql/16/replica/logfile
 ```
 
+Когда slave запущен, проверяем работоспособность - запишем что-то в базу через мастер и проверим, что в реплику записалось то же самое. 
+Запись через мастер
+```
+sudo -i -u postgres psql -p 5432 -d test_master
 
+CREATE TABLE replication_test (id serial PRIMARY KEY, message text);
+INSERT INTO replication_test (message) VALUES ('Привет! Репликация работает!');
+```
+
+Проверка на slave
+```
+sudo -i -u postgres psql -p 5433 -d test_master
+
+SELECT * FROM replication_test;
+```
+Как результат должны увидеть запись 'Привет! Репликация работает!'
 
 ---
